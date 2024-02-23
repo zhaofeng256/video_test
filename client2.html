@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>client2</title>
+</head>
+<body>
+
+<video controls></video>
+
+<script>
+    const video = document.querySelector('video');
+    const mediaSource = new MediaSource();
+    const videoUrl = URL.createObjectURL(mediaSource);
+
+    video.src = videoUrl;
+
+    mediaSource.addEventListener('sourceopen', () => {
+        //'video/mp4; codecs="avc1.42E01E, mp4a.40.2"'
+        const sourceBuffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.42E01E, mp4a.40.2"');
+
+        // Fetch your streaming data and append it to sourceBuffer
+        fetchBuffer('http://localhost:3000/video', buffer => {        
+            sourceBuffer.appendBuffer(buffer)
+        })
+
+    });
+    
+    // 在sourceended或sourceclosed事件中调用endOfStream
+    mediaSource.addEventListener('sourceended', () => {
+      mediaSource.endOfStream();
+      video.play();
+      console.log(mediaSource.readyState); // ended
+    });
+
+    mediaSource.addEventListener('sourceclosed', () => {
+      mediaSource.endOfStream();
+      video.play();
+      console.log(mediaSource.readyState); // ended
+    });
+    mediaSource.addEventListener('sourceclose', function(e) {console.log("SOURCE CLOSED");},false);
+    // 以二进制格式请求某个url
+    function fetchBuffer (url, callback) {
+        var xhr = new XMLHttpRequest;
+        xhr.open('get', url);
+        xhr.responseType = 'arraybuffer';
+        xhr.onload = function () {
+            callback(xhr.response);
+        };
+        xhr.send();
+    }
+</script>
+
+</body>
+</html>

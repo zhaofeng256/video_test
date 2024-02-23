@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>sourcebuffer</title>
+</head>
+<body>
+
+<video controls></video>
+
+<script>
+    const video = document.querySelector('video');
+    let mediaSource;
+ 
+    if ("MediaSource" in window) {
+      mediaSource = new MediaSource;
+      console.log(mediaSource.readyState); // closed
+      video.src = URL.createObjectURL(mediaSource);
+      mediaSource.addEventListener("sourceopen", sourceOpen);
+      mediaSource.addEventListener('sourceclose', function(e) {console.log("SOURCE CLOSED");}, false);
+    } else {
+      console.error("Unsupported MIME type or codec: ", mimeCodec);
+    }
+    
+    
+    function sourceOpen() {
+        const sourceBuffer = mediaSource.addSourceBuffer('video/mp4');
+
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'video/mp4';
+
+        input.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+
+            if (file) {
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    // 将文件内容附加到 sourceBuffer 中
+                    sourceBuffer.appendBuffer(e.target.result);
+
+                    // 在附加完数据后，通知 MediaSource 不再有数据
+                    mediaSource.endOfStream();
+                };
+
+                // 以数组缓冲区的方式读取文件
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        document.body.appendChild(input);
+
+        // input.click();
+    }
+</script>
+
+</body>
+</html>
