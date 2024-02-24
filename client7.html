@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>client7</title>
+</head>
+<body>
+
+<video controls ></video>
+
+<script>
+    const video = document.querySelector('video');
+    const mediaSource = new MediaSource();
+    const videoUrl = URL.createObjectURL(mediaSource);
+
+    video.src = videoUrl;
+
+    
+    // 在sourceended或sourceclosed事件中调用endOfStream
+    mediaSource.addEventListener('sourceended', () => {
+      console.log('source ended')
+      //mediaSource.endOfStream();
+      //video.play();
+      //console.log(mediaSource.readyState); // ended
+    });
+
+    mediaSource.addEventListener('sourceclose', () => {
+      console.log('source close')
+      //mediaSource.endOfStream();
+      //video.play();
+      //console.log(mediaSource.readyState); // ended
+    });
+    //mediaSource.addEventListener('sourceclose', function(e) {console.log("SOURCE CLOSE");},false);
+    
+    // sourceended, sourceclosed, and sourceclose events are not always triggered
+    // Instead, use ended event on the video element
+    video.addEventListener('ended', () => {
+      console.log('Video playback ended');
+    });
+
+    
+
+
+
+    // 以二进制格式请求某个url
+    function fetchBuffer (url, callback) {
+        var xhr = new XMLHttpRequest;
+        xhr.open('get', url);
+        xhr.responseType = 'arraybuffer';
+        xhr.onload = function () {
+            callback(xhr.response);
+        };
+        xhr.send();
+    }
+
+    mediaSource.addEventListener('sourceopen', () => {
+        //'video/mp4; codecs="avc1.42E01E, mp4a.40.2"'
+        
+        //video/mp4; codecs="avc1.64001e,mp4a.40.2"; profiles="isom,iso2,avc1,mp41"
+        //video/mp4; codecs="avc1.64001e,mp4a.40.2"; profiles="isom,iso6,iso2,avc1,mp41"
+        
+        const sourceBuffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.64001E,mp4a.40.2"; profiles="isom,iso6,iso2,avc1,mp41"');
+        console.log('source open')
+        
+        sourceBuffer.addEventListener('updateend', () => {
+        // 检查是否所有缓冲区都已经更新完毕
+            console.log('update end')
+            mediaSource.endOfStream();
+            //video.play();
+        });
+        sourceBuffer.addEventListener('error', (err) => {
+            console.log('sourceBuffer error :' , err)
+            //mediaSource.endOfStream();
+            //video.play();
+        });
+        // Fetch your streaming data and append it to sourceBuffer
+        fetchBuffer('http://192.168.0.101:3000/video', buffer => {
+            console.log('fetch ' + buffer.byteLength)
+            sourceBuffer.appendBuffer(buffer)
+            //mediaSource.endOfStream();
+            //video.play();
+        })
+
+    });
+    
+
+</script>
+
+</body>
+</html>
