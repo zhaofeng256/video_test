@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         media-source-extract
+// @name         my-media-source-extract
 // @namespace    https://github.com/Momo707577045/media-source-extract
 // @version      0.8.2
 // @description  https://github.com/Momo707577045/media-source-extract 配套插件
@@ -15,7 +15,7 @@
 (function () {
   'use strict';
   (function () {
-    if (document.getElementById('media-source-extract')) {
+    if (document.getElementById('my-media-source-extract')) {
       return
     }
 
@@ -42,7 +42,6 @@
         console.log(error)
       }
     }, 1000)
-
 
     let sumFragment = 0 // 已经捕获的所有片段数
     let isClose = false // 是否关闭
@@ -100,13 +99,13 @@
 
     // 流式下载
     function _streamDownload() {
-      var _hmt = _hmt || [];
-      (function () {
-        var hm = document.createElement("script");
-        hm.src = "https://hm.baidu.com/hm.js?1f12b0865d866ae1b93514870d93ce89";
-        var s = document.getElementsByTagName("script")[0];
-        s.parentNode.insertBefore(hm, s);
-      })();
+      // var _hmt = _hmt || [];
+      // (function () {
+        // var hm = document.createElement("script");
+        // hm.src = "https://hm.baidu.com/hm.js?1f12b0865d866ae1b93514870d93ce89";
+        // var s = document.getElementsByTagName("script")[0];
+        // s.parentNode.insertBefore(hm, s);
+      // })();
 
       // 对应状态未下载结束的媒体轨道
       const remainSourceBufferList = []
@@ -124,13 +123,13 @@
 
     // 普通下载
     function _download() {
-      var _hmt = _hmt || [];
-      (function () {
-        var hm = document.createElement("script");
-        hm.src = "https://hm.baidu.com/hm.js?1f12b0865d866ae1b93514870d93ce89";
-        var s = document.getElementsByTagName("script")[0];
-        s.parentNode.insertBefore(hm, s);
-      })();
+      // var _hmt = _hmt || [];
+      // (function () {
+        // var hm = document.createElement("script");
+        // hm.src = "https://hm.baidu.com/hm.js?1f12b0865d866ae1b93514870d93ce89";
+        // var s = document.getElementsByTagName("script")[0];
+        // s.parentNode.insertBefore(hm, s);
+      // })();
 
       _sourceBufferList.forEach((target) => {
         const mime = target.mime.split(';')[0]
@@ -161,10 +160,11 @@
       }
 
       if (confirm('资源全部捕获成功，即将下载！') == true) {
-        _download()
+        //_download()
       } else {
         // 不下载资源
       }
+      _download()
       _endOfStream.call(this)
     }
 
@@ -179,24 +179,43 @@
         mime,
         bufferList,
         MSEInstance: this,
+        id:1,//media source
+        subId:1,
+        fragments:0,
       }
-
+      _sourceBufferList.push(_sourceBuffer)
+      _sourceBuffer.id = _sourceBufferList.length
       // 如果 streamSaver 已提前加载完成，则初始化对应的 streamWriter
       try {
         if (window.streamSaver) {
           const type = mime.split(';')[0].split('/')[1]
-          _sourceBuffer.streamWriter = streamSaver.createWriteStream(`${getDocumentTitle()}.${type}`).getWriter()
+          const fileName = `${getDocumentTitle()}-${_sourceBuffer.id}-${_sourceBuffer.subId}.${type}`
+          _sourceBuffer.streamWriter = streamSaver.createWriteStream(fileName).getWriter()
+          console.debug('-- create file ', fileName)
         }
       } catch (error) {
         console.error(error)
       }
 
-      _sourceBufferList.push(_sourceBuffer)
       sourceBuffer.appendBuffer = function (buffer) {
         sumFragment++
+        _sourceBuffer.fragments++
+        console.debug('buffer fragments', _sourceBuffer.id, _sourceBuffer.fragments, _sourceBuffer.subId)
         $downloadNum.innerHTML = `已捕获 ${sumFragment} 个片段`
 
         if (isStreamDownload && _sourceBuffer.streamWriter) { // 流式下载
+
+              const subId = Math.ceil(_sourceBuffer.fragments/200);
+
+              if (subId != sourceBuffer.subId) {
+                _sourceBuffer.streamWriter.close();
+                const type = mime.split(';')[0].split('/')[1];
+                const fileName = `${getDocumentTitle()}-${_sourceBuffer.id}-${_sourceBuffer.subId}.${type}`;
+                _sourceBuffer.streamWriter = streamSaver.createWriteStream(fileName).getWriter();
+                sourceBuffer.subId = subId;
+                console.debug('++ create file ', fileName)
+              }
+
           _sourceBuffer.streamWriter.write(new Uint8Array(buffer));
         } else { // 普通 blob 下载
           bufferList.push(buffer)
@@ -300,19 +319,23 @@
 
       // 启动流式下载
       $btnStreamDownload.addEventListener('click', function () {
-        (function () {
-          var hm = document.createElement("script");
-          hm.src = "https://hm.baidu.com/hm.js?1f12b0865d866ae1b93514870d93ce89";
-          var s = document.getElementsByTagName("script")[0];
-          s.parentNode.insertBefore(hm, s);
-        })();
+        // (function () {
+          // var hm = document.createElement("script");
+          // hm.src = "https://hm.baidu.com/hm.js?1f12b0865d866ae1b93514870d93ce89";
+          // var s = document.getElementsByTagName("script")[0];
+          // s.parentNode.insertBefore(hm, s);
+        // })();
         isStreamDownload = true
         $btnDownload.style.display = 'none'
         $btnStreamDownload.style.display = 'none'
+
         _sourceBufferList.forEach(sourceBuffer => {
           if (!sourceBuffer.streamWriter) {
             const type = sourceBuffer.mime.split(';')[0].split('/')[1]
-            sourceBuffer.streamWriter = streamSaver.createWriteStream(`${getDocumentTitle()}.${type}`).getWriter()
+            //sourceBuffer.streamFile = `${getDocumentTitle()}-${sourceBuffer.id}-1.${type}`
+            sourceBuffer.streamWriter = streamSaver.createWriteStream().getWriter(sourceBuffer.streamFile)
+            console.debug('create file', sourceBuffer.streamFile)
+
             sourceBuffer.bufferList.forEach(buffer => {
               sourceBuffer.streamWriter.write(new Uint8Array(buffer));
             })
