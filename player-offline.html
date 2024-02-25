@@ -190,20 +190,12 @@
     <label @click="(audioFileName || videoFileName) && play()" :class="[audioFileName || videoFileName ? '' : 'disable']">播放</label>
   </section>
 
-  <!--播放视频-->
-  <video controls v-show="isPlay" ref="player"></video>
+  <!--播放视频   width="1000" height="800"-->
+  <video id="myVideo" controls v-show="isPlay" ref="player"></video>
 
 </section>
 </body>
-<!-- <script>
-var _hmt = _hmt || [];
-(function() {
-  var hm = document.createElement("script");
-  hm.src = "https://hm.baidu.com/hm.js?1f12b0865d866ae1b93514870d93ce89";
-  var s = document.getElementsByTagName("script")[0];
-  //s.parentNode.insertBefore(hm, s);
-})();
-</script> -->
+
 <script>
   /*! mp4box 19-03-2022 */
 
@@ -221,6 +213,35 @@ var Log=function(){var i=new Date,r=4;return{setLogLevel:function(t){r=t==this.d
   </script>
 
 <script>
+const myVideo = document.getElementById('myVideo');
+
+// 监听视频加载完成事件
+myVideo.addEventListener('loadedmetadata', function() {
+  adjustVideoSize(); // 初始化时调整视频大小
+});
+
+// 监听窗口大小改变事件
+window.addEventListener('resize', function() {
+  adjustVideoSize(); // 窗口大小改变时调整视频大小
+});
+
+function adjustVideoSize() {
+  const windowWidth = window.innerWidth;
+  const videoWidth = this.videoWidth;
+  const videoHeight = this.videoHeight;
+
+  // 计算视频应该调整的宽度和高度
+  const scale = Math.min(windowWidth / videoWidth, 1);
+  const newWidth = videoWidth * scale;
+  const newHeight = videoHeight * scale;
+
+  // 设置视频控件的宽度和高度
+  //video.style.width = newWidth + 'px';
+  //video.style.height = newHeight + 'px';
+  myVideo.style.width = '100%'
+  console.log('video resize')
+}
+
 document.getElementById('loading') && document.getElementById('loading').remove()
 new Vue({
   el: '#m-app',
@@ -284,13 +305,14 @@ new Vue({
                   this[`${type}SourceBuffer`] = this.mediaSource.addSourceBuffer(mime)
                   if (type === 'video') {
                     console.log('listen')
-                    this.videoSourceBuffer.addEventListener('updateend', this.videoUpdateEnd)
-                    this.videoSourceBuffer.addEventListener('updatestart', this.videoUpdateStart)
-                    this.videoSourceBuffer.addEventListener('update', this.videoUpdate)
-                    this.videoSourceBuffer.addEventListener('error', this.videoUpdateError)
-                    // set sourcebuffer size
-                    //this.videoSourceBuffer.buffered.end(0)
+                    this.videoSourceBuffer.addEventListener('updateend',  this.videoUpdateEnd)
+                    this.videoSourceBuffer.addEventListener('updatestart',  this.videoUpdateStart)
+                    this.videoSourceBuffer.addEventListener('update',  this.videoUpdate)
+                    this.videoSourceBuffer.addEventListener('error',  this.videoUpdateError)
+                  }
 
+                  if (type === 'audio') {
+                    this.audioSourceBuffer.addEventListener('updateend',  this.audioUpdateEnd)
                   }
                 })
               }
@@ -314,30 +336,6 @@ new Vue({
 
       })
       processFile(0)
-      <!-- const file = file_list[0] -->
-      <!-- this[`${type}FileName`] = file.name -->
-      <!-- let reader = new FileReader(); -->
-      <!-- reader.onloadend = (loadEvent) => { -->
-        <!-- this[`${type}ArrayBuffer`] = loadEvent.target.result -->
-        <!-- this.getMime(this[`${type}ArrayBuffer`]).then((mime) => { -->
-          <!-- mime = mime.replace(/,rtp/g, '') -->
-          <!-- console.log(this[`${type}ArrayBuffer`], mime, MediaSource.isTypeSupported(mime)) -->
-          <!-- this[`${type}SourceBuffer`] = this.mediaSource.addSourceBuffer(mime) -->
-
-          <!-- // 测试性代码 -->
-          <!-- if (type === 'video') { -->
-            <!-- console.log('listen') -->
-            <!-- this.videoSourceBuffer.addEventListener('updateend', this.videoUpdateEnd) -->
-            <!-- this.videoSourceBuffer.addEventListener('updatestart', this.videoUpdateStart) -->
-            <!-- this.videoSourceBuffer.addEventListener('update', this.videoUpdate) -->
-            <!-- this.videoSourceBuffer.addEventListener('error', this.videoUpdateError) -->
-            <!-- // set sourcebuffer size -->
-            <!-- //this.videoSourceBuffer.buffered.end(0) -->
-          <!-- } -->
-
-        <!-- }) -->
-      <!-- } -->
-      <!-- reader.readAsArrayBuffer(file); -->
 
     },
 
@@ -356,17 +354,12 @@ new Vue({
     // 播放
     play() {
       this.isPlay = true
-      if (this.videoSourceBuffer && this.videoArrayBufferList ){
-        //this.videoSourceBuffer.appendBuffer(this.videoArrayBuffer);
-        //console.log('video append')
+      if (this.videoSourceBuffer && this.videoArrayBufferList && this.videoArrayBufferList.length > 0){
         this.videoSourceBuffer.appendBuffer(this.videoArrayBufferList[0])
-        //for (var i=0;i<this.videoArrayBufferList.length;i++) {
-        //  this.videoSourceBuffer.appendBuffer(this.videoArrayBufferList[i])
-        //  console.log('video append', i)
-        //}
       }
-      this.audioSourceBuffer && this.audioArrayBuffer && this.audioSourceBuffer.appendBuffer(this.audioArrayBuffer)
-      
+      if (this.audioSourceBuffer && this.audioArrayBufferList && this.audioArrayBufferList.length > 0){
+        this.audioSourceBuffer.appendBuffer(this.audioArrayBufferList[0])
+      }
     },
 
     // 设置播放倍数
@@ -374,22 +367,37 @@ new Vue({
       this.playbackRateIndex = index
       this.$refs.player.playbackRate = this.playbackRateList[index]
     },
-    
+
     videoUpdateEnd() {
       if (this.videoSourceBuffer) {
         const buffered = this.videoSourceBuffer.buffered;
-        console.log('总时长:已加载时长', this.mediaSource.duration, buffered.end(buffered.length - 1)) }
+        console.log('视频总时长:已加载时长', this.mediaSource.duration, buffered.end(buffered.length - 1)) 
         this.videoArrayBufferList.shift()
-        if (this.videoArrayBufferList.length > 0)
+        if (this.videoArrayBufferList.length > 0) {
             this.videoSourceBuffer.appendBuffer(this.videoArrayBufferList[0])
-        else {
-            this.mediaSource.endOfStream();
-            console.log('加载完成')
+        } else {
+            //this.mediaSource.endOfStream();
+            console.log('视频加载完成')
+        }
+      }
+    },
+    videoUpdateStart() {console.log('video Update start');},
+    videoUpdate() {console.log('vido Update');},
+    videoUpdateError(evt) {console.log('video Update error', evt);},
+
+    audioUpdateEnd() {
+        if (this.audioSourceBuffer) {
+            const buffered = this.audioSourceBuffer.buffered;
+            console.log('音频总时长:已加载时长', this.mediaSource.duration, buffered.end(buffered.length - 1))
+            this.audioArrayBufferList.shift()
+            if (this.audioArrayBufferList.length > 0) {
+                this.audioSourceBuffer.appendBuffer(this.audioArrayBufferList[0])
+            } else {
+                //this.mediaSource.endOfStream();
+                console.log('音频加载完成');
+            }
         }
     },
-    videoUpdateStart() {console.log('Update start');},
-    videoUpdate() {console.log('Update');},
-    videoUpdateError(evt) {console.log('Update error', evt);},
   }
 })
 
