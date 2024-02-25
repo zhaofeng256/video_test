@@ -7,7 +7,7 @@
   <meta name="author" content="毛静文,Momo">
   <meta name="keywords" content="无差别提取视频的工具,毛静文的博客,Momo's Blog">
   <meta name="description" content="无差别提取视频的工具,网页上能播放的视频,绝大部分都可以通过本工具进行提取,无视媒体加密技术,直接从底层捕获视频资源">
-  <title>Media Source Player</title>
+  <title>My Media Source Player</title>
   <style>
   /*全局设置*/
   html, body, #m-app {
@@ -185,8 +185,8 @@
   <section id="input-box" v-show="!isPlay">
     <label for="video" :title="videoFileName" :class="[videoFileName ? 'finish' : '']">{{ videoFileName ? `视频已上传(${videoFileName})` : '点击，上传视频文件' }}</label>
     <label for="audio" :title="audioFileName" :class="[audioFileName ? 'finish' : '']">{{ audioFileName ? `音频已上传(${audioFileName})` : '点击，上传音频文件' }}</label>
-    <input v-if="!videoFileName" id="video" accept="video/*" type="file" value="点击，上传视频文件" @change="!videoFileName && loadSource($event, 'video')">
-    <input v-if="!audioFileName" id="audio" accept="audio/*" type="file" value="点击，上传音频文件" @change="!audioFileName && loadSource($event, 'audio')">
+    <input v-if="!videoFileName" id="video" accept="video/*" type="file" value="点击，上传视频文件" @change="!videoFileName && loadSource($event, 'video')" multiple>
+    <input v-if="!audioFileName" id="audio" accept="audio/*" type="file" value="点击，上传音频文件" @change="!audioFileName && loadSource($event, 'audio')" multiple>
     <label @click="(audioFileName || videoFileName) && play()" :class="[audioFileName || videoFileName ? '' : 'disable']">播放</label>
   </section>
 
@@ -237,7 +237,9 @@ new Vue({
       audioSourceBuffer: null,
       videoArrayBuffer: null,
       audioArrayBuffer: null,
-      videoDuration: null
+      videoDuration: null,
+      videoArrayBufferList:[],
+      audioArrayBufferList:[],
     }
   },
 
@@ -252,29 +254,91 @@ new Vue({
   methods: {
     // 上传资源
     loadSource(event, type) {
-      const file = event.target.files[0]
-      this[`${type}FileName`] = file.name
-      let reader = new FileReader();
-      reader.onloadend = (loadEvent) => {
-        this[`${type}ArrayBuffer`] = loadEvent.target.result
-        this.getMime(this[`${type}ArrayBuffer`]).then((mime) => {
-          mime = mime.replace(/,rtp/g, '')
-          console.log(this[`${type}ArrayBuffer`], mime, MediaSource.isTypeSupported(mime))
-          this[`${type}SourceBuffer`] = this.mediaSource.addSourceBuffer(mime)
-          
-          if (type === 'video') {
-            console.log('listen')
-            this.videoSourceBuffer.addEventListener('updateend', this.videoUpdateEnd)
-            this.videoSourceBuffer.addEventListener('updatestart', this.videoUpdateStart)
-            this.videoSourceBuffer.addEventListener('update', this.videoUpdate)
-            this.videoSourceBuffer.addEventListener('error', this.videoUpdateError)
-            // set sourcebuffer size
-            //this.videoSourceBuffer.buffered.end(0)
-          }
-
-        })
+      const file_list = []
+      for (const f of event.target.files) {
+        console.log('Selected File:', f.name);
+        file_list.push(f.name)
       }
-      reader.readAsArrayBuffer(file);
+
+      file_list.sort()
+      console.log(file_list)
+      this[`${type}ArrayBufferList`] = []
+
+      processFile = ((i)=> {
+
+        if (i >= file_list.length)
+            return;
+        let reader = new FileReader();
+
+            //onLoad
+            reader.onloadend = (loadEvent) => {
+              arrayBuffer = loadEvent.target.result
+              this[`${type}ArrayBufferList`].push(arrayBuffer)
+              console.log('load',file_list[i])
+              //add sourcebuffer
+              if (i == 0) {
+                this[`${type}FileName`] = file_list[0]
+                this.getMime(arrayBuffer).then((mime) => {
+                  mime = mime.replace(/,rtp/g, '')
+                  console.log(arrayBuffer, mime, MediaSource.isTypeSupported(mime))
+                  this[`${type}SourceBuffer`] = this.mediaSource.addSourceBuffer(mime)
+                  if (type === 'video') {
+                    console.log('listen')
+                    this.videoSourceBuffer.addEventListener('updateend', this.videoUpdateEnd)
+                    this.videoSourceBuffer.addEventListener('updatestart', this.videoUpdateStart)
+                    this.videoSourceBuffer.addEventListener('update', this.videoUpdate)
+                    this.videoSourceBuffer.addEventListener('error', this.videoUpdateError)
+                    // set sourcebuffer size
+                    //this.videoSourceBuffer.buffered.end(0)
+
+                  }
+                })
+              }
+
+            }
+
+            //read
+            for (const f of event.target.files) {
+               if (f.name === file_list[i]) {
+                 reader.fileInfo = {
+                    name: f.name,
+                    type: f.type,
+                    size: f.size,
+                 };
+                 reader.readAsArrayBuffer(f);
+                 console.log('read', f.name)
+               }
+            }
+
+            processFile(i+1);
+
+      })
+      processFile(0)
+      <!-- const file = file_list[0] -->
+      <!-- this[`${type}FileName`] = file.name -->
+      <!-- let reader = new FileReader(); -->
+      <!-- reader.onloadend = (loadEvent) => { -->
+        <!-- this[`${type}ArrayBuffer`] = loadEvent.target.result -->
+        <!-- this.getMime(this[`${type}ArrayBuffer`]).then((mime) => { -->
+          <!-- mime = mime.replace(/,rtp/g, '') -->
+          <!-- console.log(this[`${type}ArrayBuffer`], mime, MediaSource.isTypeSupported(mime)) -->
+          <!-- this[`${type}SourceBuffer`] = this.mediaSource.addSourceBuffer(mime) -->
+
+          <!-- // 测试性代码 -->
+          <!-- if (type === 'video') { -->
+            <!-- console.log('listen') -->
+            <!-- this.videoSourceBuffer.addEventListener('updateend', this.videoUpdateEnd) -->
+            <!-- this.videoSourceBuffer.addEventListener('updatestart', this.videoUpdateStart) -->
+            <!-- this.videoSourceBuffer.addEventListener('update', this.videoUpdate) -->
+            <!-- this.videoSourceBuffer.addEventListener('error', this.videoUpdateError) -->
+            <!-- // set sourcebuffer size -->
+            <!-- //this.videoSourceBuffer.buffered.end(0) -->
+          <!-- } -->
+
+        <!-- }) -->
+      <!-- } -->
+      <!-- reader.readAsArrayBuffer(file); -->
+
     },
 
     // 获取媒体格式
@@ -292,9 +356,15 @@ new Vue({
     // 播放
     play() {
       this.isPlay = true
-      if (this.videoSourceBuffer && this.videoArrayBuffer ){
-        this.videoSourceBuffer.appendBuffer(this.videoArrayBuffer);
-        console.log('video append')}
+      if (this.videoSourceBuffer && this.videoArrayBufferList ){
+        //this.videoSourceBuffer.appendBuffer(this.videoArrayBuffer);
+        //console.log('video append')
+        this.videoSourceBuffer.appendBuffer(this.videoArrayBufferList[0])
+        //for (var i=0;i<this.videoArrayBufferList.length;i++) {
+        //  this.videoSourceBuffer.appendBuffer(this.videoArrayBufferList[i])
+        //  console.log('video append', i)
+        //}
+      }
       this.audioSourceBuffer && this.audioArrayBuffer && this.audioSourceBuffer.appendBuffer(this.audioArrayBuffer)
       
     },
@@ -308,7 +378,14 @@ new Vue({
     videoUpdateEnd() {
       if (this.videoSourceBuffer) {
         const buffered = this.videoSourceBuffer.buffered;
-        console.log('update end duration', this.mediaSource.duration, buffered.end(buffered.length - 1)) }
+        console.log('总时长:已加载时长', this.mediaSource.duration, buffered.end(buffered.length - 1)) }
+        this.videoArrayBufferList.shift()
+        if (this.videoArrayBufferList.length > 0)
+            this.videoSourceBuffer.appendBuffer(this.videoArrayBufferList[0])
+        else {
+            this.mediaSource.endOfStream();
+            console.log('加载完成')
+        }
     },
     videoUpdateStart() {console.log('Update start');},
     videoUpdate() {console.log('Update');},
