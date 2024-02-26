@@ -240,8 +240,25 @@ function adjustVideoSize() {
   //video.style.height = newHeight + 'px';
   myVideo.style.width = '100%'
   console.log('video resize')
-}
+  
 
+}
+document.addEventListener('keydown', function(event) {
+    // Check if the video element is focused
+    if (document.activeElement === video) {
+      // Handle left arrow key
+      if (event.key === 'ArrowLeft') {
+        // Rewind by 5 seconds (adjust as needed)
+        myVideo.currentTime -= 5;
+      }
+      
+      // Handle right arrow key
+      if (event.key === 'ArrowRight') {
+        // Fast forward by 5 seconds (adjust as needed)
+        myVideo.currentTime += 5;
+      }
+    }
+  });
 document.getElementById('loading') && document.getElementById('loading').remove()
 new Vue({
   el: '#m-app',

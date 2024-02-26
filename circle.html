@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sequential FileReader with Recursion Example</title>
+</head>
+<body>
+
+<input type="file" id="fileInput" multiple>
+
+<script>
+  // 获取文件输入框
+  const fileInput = document.getElementById('fileInput');
+
+  // 添加 change 事件监听器，当用户选择文件时触发
+  fileInput.addEventListener('change', handleFileSelect);
+
+  // 处理文件选择事件
+  function handleFileSelect(event) {
+    // 获取用户选择的文件列表
+    const fileList = event.target.files;
+
+    // 递归处理文件列表
+    function processFiles(files, index) {
+      // 如果索引超过文件列表长度，结束递归
+      if (index >= files.length) {
+        console.log('All files processed');
+        return;
+      }
+
+      // 创建 FileReader 实例
+      const reader = new FileReader();
+
+      // 使用 Promise 包装文件读取过程
+      const readFilePromise = new Promise((resolve, reject) => {
+        // 设置 FileReader 的 onload 事件处理程序，当读取完成时触发
+        reader.onload = function (e) {
+          // 读取的文件内容在 e.target.result 中
+          const fileContent = e.target.result;
+
+          // 将文件内容和文件名作为 Promise 的结果返回
+          resolve({ fileContent, fileName: files[index].name });
+        };
+
+        // 设置 FileReader 的 onerror 事件处理程序，当发生错误时触发
+        reader.onerror = function (e) {
+          // 将错误信息作为 Promise 的拒绝原因返回
+          reject(e.target.error);
+        };
+
+        // 开始读取文件，以文本形式读取
+        console.log('read',files[index].name)
+        reader.readAsText(files[index]);
+      });
+
+      // 使用 Promise.then 处理文件读取完成后的操作
+      readFilePromise.then(result => {
+        // 打印文件名和当前毫秒数
+        console.log('File Name:', result.fileName);
+        console.log('Current Time in Milliseconds:', Date.now());
+        // 执行你的其他操作，比如打印文件内容
+        console.log('File name:', result.fileName);
+
+        // 递归调用处理下一个文件
+        processFiles(files, index + 1);
+
+        // 如果是最后一个文件，打印所有文件处理完成的提示
+        if (index === files.length - 1) {
+          console.log('All files processed');
+        }
+      }).catch(error => {
+        // 处理读取文件时的错误
+        console.error('Error reading file:', error);
+
+        // 递归调用处理下一个文件
+        processFiles(files, index + 1);
+      });
+    }
+
+    // 调用递归处理文件列表的函数
+    processFiles(fileList, 0);
+  }
+</script>
+
+</body>
+</html>
