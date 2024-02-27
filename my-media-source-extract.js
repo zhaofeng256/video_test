@@ -171,7 +171,7 @@
 
       sourceBuffer.appendBuffer = function (buffer) {
         sumFragment++
-        $downloadNum.innerHTML = `已捕获 ${sumFragment} 个片段`
+        $downloadNum.innerHTML = `已捕获 ${_sourceBuffer.fragments} 个片段`
 
         if (isStreamDownload && _sourceBuffer.streamWriter) { // 流式下载
           _sourceBuffer.fragments++

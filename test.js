@@ -49,3 +49,18 @@ mma()
 c = 'adfadfasd'
 const len = c.length < 10 ? c.length : 10;
 console.log(len, c.substring(0, 20))
+
+
+const k = {
+  a:0,
+  b:'',
+}
+c=[]
+c.push(k)
+console.log(c[0])
+
+d = [1,2,3,4]
+d.shift()
+console.log(d)
+d.pop()
+console.log(d)
