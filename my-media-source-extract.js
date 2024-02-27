@@ -3,6 +3,7 @@
 // @namespace
 // @version
 // @description
+// @include      *
 // @exclude
 // @downloadURL
 // @updateURL
@@ -42,12 +43,16 @@
     }, 1000)
 
     let sumFragment = 0 // 已经捕获的所有片段数
+    let videoFragments = 0
+    let audioFragments = 0
     let isClose = false // 是否关闭
     let isStreamDownload = false // 是否使用流式下载
+    let stopStreamDownload = false // 停止流式下载
     let _sourceBufferList = [] // 媒体轨道
     const $showBtn = document.createElement('div') // 展示按钮
     const $btnDownload = document.createElement('div') // 下载按钮
     const $btnStreamDownload = document.createElement('div') // 流式下载按钮
+    const $btnStopStreamDownload = document.createElement('div') //结束流式下载
     const $downloadNum = document.createElement('div') // 已捕获视频片段数
     const $tenRate = document.createElement('div') // 十倍速播放
     const $closeBtn = document.createElement('div') // 关闭
@@ -164,25 +169,32 @@
         subId: 1,
         fragments: 0,
         fileName: '',
+        type:'',
+        fragsPerFile:50,
       }
       _sourceBufferList.push(_sourceBuffer)
       _sourceBuffer.mime = mime
+      _sourceBuffer.type = mime.split(';')[0].split('/')[0]
+      if (_sourceBuffer.type == 'audio') {
+        _sourceBuffer.type = 'aac'
+      } else {
+        _sourceBuffer.type = 'mp4'
+      }
       _sourceBuffer.id = _sourceBufferList.length
 
       sourceBuffer.appendBuffer = function (buffer) {
         sumFragment++
-        $downloadNum.innerHTML = `已捕获 ${_sourceBuffer.fragments} 个片段`
+        $downloadNum.innerHTML = `已捕获 ${sumFragment} 个片段`
 
-        if (isStreamDownload && _sourceBuffer.streamWriter) { // 流式下载
+        if (isStreamDownload && _sourceBuffer.streamWriter && stopStreamDownload) { // 流式下载
           _sourceBuffer.fragments++
           console.debug('buffer fragments', _sourceBuffer.id, _sourceBuffer.fragments, _sourceBuffer.subId)
-          const subId = Math.ceil(_sourceBuffer.fragments / 50) + 1
+          const subId = Math.ceil(_sourceBuffer.fragments / _sourceBuffer.fragsPerFile) + 1
 
           if (subId != _sourceBuffer.subId) {
-            console.debug('close', subId, _sourceBuffer.subId)
             _sourceBuffer.streamWriter.close()
-            const type = mime.split(';')[0].split('/')[1]
-            _sourceBuffer.fileName = `${getDocumentTitle().substring(0, 10)}-${_sourceBuffer.id}-${subId}.${type}`
+            console.debug('close file', _sourceBuffer.fileName)
+            _sourceBuffer.fileName = `${getDocumentTitle().substring(0, 10)}-${_sourceBuffer.id}-${subId}.${_sourceBuffer.type}`
             _sourceBuffer.streamWriter = createWriteStream(_sourceBuffer.fileName).getWriter()
             _sourceBuffer.subId = subId
             console.debug('++ create file ', _sourceBuffer.fileName)
@@ -231,12 +243,15 @@
       $downloadNum.innerHTML = '已捕获 0 个片段'
       $btnStreamDownload.innerHTML = '特大视频下载，边下载边保存'
       $btnDownload.innerHTML = '下载已捕获片段'
+      $btnStopStreamDownload.innerHTML = '停止流下载'
       $btnDownload.id = 'media-source-extract'
       $tenRate.style = baseStyle
       $downloadNum.style = baseStyle
       $btnDownload.style = baseStyle
       $btnStreamDownload.style = baseStyle
       $btnStreamDownload.style.display = 'none'
+      $btnStopStreamDownload.style = baseStyle
+      $btnStopStreamDownload.style.display = 'none'
       $showBtn.style = `
       float:right;
       clear:both;
@@ -272,6 +287,7 @@
         $btnDownload.style.display = 'none'
         $closeBtn.style.display = 'none'
         $tenRate.style.display = 'none'
+        $btnStopStreamDownload.style.display = 'none'
         $showBtn.style.display = 'inline-block'
         isClose = true
       })
@@ -281,6 +297,10 @@
         if (!isStreamDownload) {
           $btnDownload.style.display = 'inline-block'
           $btnStreamDownload.style.display = 'inline-block'
+          $btnStopStreamDownload.style.display = 'none'
+        } else {
+          $btnStreamDownload.style.display = 'none'
+          $btnStopStreamDownload.style.display = 'inline-block'
         }
         $downloadNum.style.display = 'inline-block'
         $closeBtn.style.display = 'inline-block'
@@ -294,11 +314,11 @@
         isStreamDownload = true
         $btnDownload.style.display = 'none'
         $btnStreamDownload.style.display = 'none'
+        $btnStopStreamDownload.style.display = 'inline-block'
 
         _sourceBufferList.forEach(sourceBuffer => {
           if (!sourceBuffer.streamWriter) {
-            const type = sourceBuffer.mime.split(';')[0].split('/')[1]
-            sourceBuffer.fileName = `${getDocumentTitle().substring(0, 10)}-${sourceBuffer.id}-${sourceBuffer.subId}.${type}`
+            sourceBuffer.fileName = `${getDocumentTitle().substring(0, 10)}-${sourceBuffer.id}-${sourceBuffer.subId}.${sourceBuffer.type}`
             sourceBuffer.streamWriter = createWriteStream(sourceBuffer.fileName).getWriter(sourceBuffer.fileName)
             console.debug('click create file', sourceBuffer.fileName)
           }
@@ -309,9 +329,21 @@
           sourceBuffer.bufferList = []
         })
       })
+      
+      $btnStopStreamDownload.addEventListener('click', function () {
+        stopStreamDownload = true
+        $btnDownload.style.display = 'inline-block'
+        $btnStreamDownload.style.display = 'inline-block'
+        $btnStopStreamDownload.style.display = 'none'
+        _sourceBufferList.forEach(sourceBuffer => {
+          sourceBuffer.streamWriter.close()
+          sourceBuffer.fragments += sourceBuffer.fragsPerFile
+        })
+      })
 
       document.getElementsByTagName('html')[0].insertBefore($container, document.getElementsByTagName('head')[0])
       $container.appendChild($btnStreamDownload)
+      $container.appendChild($btnStopStreamDownload)
       $container.appendChild($downloadNum)
       $container.appendChild($btnDownload)
       $container.appendChild($tenRate)
@@ -337,7 +369,7 @@
       WritableStream: global.WritableStream || ponyfill.WritableStream,
       supported: true,
       version: { full: '2.0.5', major: 2, minor: 0, dot: 5 },
-      mitm: 'https://upyun.luckly-mjw.cn/lib/stream-saver-mitm.html'
+      mitm: 'http://localhost:80/mitm.html'//'https://upyun.luckly-mjw.cn/lib/stream-saver-mitm.html'
     }
     function makeIframe(src) {
       if (!src) throw new Error('meh')

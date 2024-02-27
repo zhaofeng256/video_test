@@ -64,3 +64,9 @@ d.shift()
 console.log(d)
 d.pop()
 console.log(d)
+
+d = null
+d=[]
+d.push(1)
+d[0] += 2
+console.log(d)
