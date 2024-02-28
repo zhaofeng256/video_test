@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FileReader with Promise Example</title>
+</head>
+<body>
+
+<input type="file" id="fileInput" multiple>
+
+<script>
+  // 获取文件输入框
+  const fileInput = document.getElementById('fileInput');
+
+  // 添加 change 事件监听器，当用户选择文件时触发
+  fileInput.addEventListener('change', handleFileSelect);
+
+  // 处理文件选择事件
+  function handleFileSelect(event) {
+    // 获取用户选择的文件列表
+    const fileList = event.target.files;
+
+    // 遍历文件列表
+    for (const file of fileList) {
+      // 创建 FileReader 实例
+      const reader = new FileReader();
+
+      // 使用 Promise 包装文件读取过程
+      const readFilePromise = new Promise((resolve, reject) => {
+        // 设置 FileReader 的 onload 事件处理程序，当读取完成时触发
+        reader.onload = function (e) {
+        
+          // 将文件信息作为 Promise 的结果返回
+          resolve(file.name);
+        };
+
+        // 设置 FileReader 的 onerror 事件处理程序，当发生错误时触发
+        reader.onerror = function (e) {
+          // 将错误信息作为 Promise 的拒绝原因返回
+          reject(e.target.error);
+        };
+
+ 
+        // 开始读取文件，以文本形式读取
+        reader.readAsArrayBuffer(file);
+                // 创建 Date 对象
+        const currentDate = new Date();
+
+        // 获取当前时间的毫秒数
+        const milliseconds = currentDate.getTime();
+
+        
+        // 执行你的操作，比如打印文件内容
+        console.log(`read: ${milliseconds}`,file.name);
+      });
+
+      // 使用 Promise.then 处理文件读取完成后的操作
+      readFilePromise.then(filename => {
+
+        // 创建 Date 对象
+        const currentDate = new Date();
+
+        // 获取当前时间的毫秒数
+        const milliseconds = currentDate.getTime();
+
+        
+                // 执行你的操作，比如打印文件内容
+        console.log(`Current Time in Milliseconds: ${milliseconds}`,filename);
+      }).catch(error => {
+        // 处理读取文件时的错误
+        console.error('Error reading file:', error);
+      });
+    }
+  }
+</script>
+
+</body>
+</html>
