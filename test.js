@@ -57,7 +57,10 @@ const k = {
 }
 c=[]
 c.push(k)
-console.log(c[0])
+f = c[0]
+f.a = 1
+
+console.log(k, c[0])
 
 d = [1,2,3,4]
 d.shift()
@@ -70,3 +73,12 @@ d=[]
 d.push(1)
 d[0] += 2
 console.log(d)
+
+console.log(1%50==1)
+
+let v = [1,2,3]
+b = {name:1,v}
+v.push(4)
+console.log(b)
+b.v.pop()
+console.log(v)

@@ -11,6 +11,36 @@
   <source src="http://localhost:3000/sample.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
-
+<script>
+  try {
+    let $streamSaver = document.createElement('script')
+    $streamSaver.src = 'http://localhost:80/streamSaver.js'
+    document.body.appendChild($streamSaver);
+    $streamSaver.addEventListener('load', () => {
+      //import streamsaver from './streamSaver.js'
+      //const streamsaver = require('./streamSaver.js')
+      const buf= [1,2,3]
+      const writer = streamSaver.createWriteStream('./a.s')
+      writer.write(buf)
+      writer.close()
+      if (!writer.closed)
+        console.log('n')
+      else
+        console.log('y')
+      setTimeout(()=>{
+        if(writer.closed)
+          console.log('closed')
+        else
+          console.log('not closed')
+      }, 500)
+     
+      // setTimeout(()=>{
+      //   writer.close()
+      // }, 1000) 
+    })
+  } catch (error) {
+    console.error(error)
+  }
+</script>
 </body>
 </html>

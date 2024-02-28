@@ -166,13 +166,13 @@
         bufferList,
         MSEInstance: this,
         id: 1,//media source
-        subId: 1,
+        subId: 0,
         fragments: 0,
         fileName: '',
         type:'',
         fragsPerFile:50,
       }
-      _sourceBufferList.push(_sourceBuffer)
+
       _sourceBuffer.mime = mime
       _sourceBuffer.type = mime.split(';')[0].split('/')[0]
       if (_sourceBuffer.type == 'audio') {
@@ -181,28 +181,33 @@
         _sourceBuffer.type = 'mp4'
       }
       _sourceBuffer.id = _sourceBufferList.length
+      _sourceBufferList.push(_sourceBuffer)
 
       sourceBuffer.appendBuffer = function (buffer) {
         sumFragment++
         $downloadNum.innerHTML = `已捕获 ${sumFragment} 个片段`
 
-        if (isStreamDownload && _sourceBuffer.streamWriter && stopStreamDownload) { // 流式下载
-          _sourceBuffer.fragments++
-          console.debug('buffer fragments', _sourceBuffer.id, _sourceBuffer.fragments, _sourceBuffer.subId)
-          const subId = Math.ceil(_sourceBuffer.fragments / _sourceBuffer.fragsPerFile) + 1
-
-          if (subId != _sourceBuffer.subId) {
-            _sourceBuffer.streamWriter.close()
-            console.debug('close file', _sourceBuffer.fileName)
-            _sourceBuffer.fileName = `${getDocumentTitle().substring(0, 10)}-${_sourceBuffer.id}-${subId}.${_sourceBuffer.type}`
-            _sourceBuffer.streamWriter = createWriteStream(_sourceBuffer.fileName).getWriter()
-            _sourceBuffer.subId = subId
-            console.debug('++ create file ', _sourceBuffer.fileName)
+        if (isStreamDownload && _sourceBuffer.streamWriter && !stopStreamDownload) { // 流式下载
+          _sourceBuffer.fragments += 1
+          const m = _sourceBuffer.fragments % _sourceBuffer.fragsPerFile
+          //console.debug(_sourceBuffer.fragments, m)
+          if (m == 1) {
+            _sourceBuffer.subId += 1
+            _sourceBuffer.fileName = `${getDocumentTitle().substring(0, 10)}-${_sourceBuffer.id}-${_sourceBuffer.subId}.${_sourceBuffer.type}`
+            _sourceBuffer.streamWriter = streamSaver.createWriteStream(_sourceBuffer.fileName).getWriter()
+            console.debug(_sourceBuffer.fileName, '++ create file')
           }
 
+          console.debug(_sourceBuffer.id, _sourceBuffer.subId, _sourceBuffer.fragments)
           _sourceBuffer.streamWriter.write(new Uint8Array(buffer))
+
+          if (m == 0) {
+            _sourceBuffer.streamWriter.close()
+            console.debug(_sourceBuffer.fileName, '++ close file')
+          }
         } else { // 普通 blob 下载
-          bufferList.push(buffer)
+          _sourceBuffer.bufferList.push(buffer)
+          console.debug('bufferList', _sourceBuffer.bufferList.length)
         }
         _append.call(this, buffer)
       }
@@ -312,32 +317,47 @@
       // 启动流式下载
       $btnStreamDownload.addEventListener('click', function () {
         isStreamDownload = true
+        stopStreamDownload = false
         $btnDownload.style.display = 'none'
         $btnStreamDownload.style.display = 'none'
         $btnStopStreamDownload.style.display = 'inline-block'
 
         _sourceBufferList.forEach(sourceBuffer => {
-          if (!sourceBuffer.streamWriter) {
+          
+          if (sourceBuffer.bufferList.length > 0) {
+            sourceBuffer.fragments = 0
+            sourceBuffer.subId += 1
             sourceBuffer.fileName = `${getDocumentTitle().substring(0, 10)}-${sourceBuffer.id}-${sourceBuffer.subId}.${sourceBuffer.type}`
-            sourceBuffer.streamWriter = createWriteStream(sourceBuffer.fileName).getWriter(sourceBuffer.fileName)
-            console.debug('click create file', sourceBuffer.fileName)
+            sourceBuffer.streamWriter = streamSaver.createWriteStream(sourceBuffer.fileName).getWriter(sourceBuffer.fileName)
+            console.debug(sourceBuffer.fileName, 'click create file', sourceBuffer.bufferList.length)
+  
+            sourceBuffer.bufferList.forEach(buffer => {
+              sourceBuffer.streamWriter.write(new Uint8Array(buffer))
+            })
+            sourceBuffer.bufferList = []
+            sourceBuffer.streamWriter.close()
+            sumFragment = 0
+            console.debug(sourceBuffer.fileName, 'click close file')
           }
-
-          sourceBuffer.bufferList.forEach(buffer => {
-            sourceBuffer.streamWriter.write(new Uint8Array(buffer))
-          })
-          sourceBuffer.bufferList = []
+          
         })
       })
       
       $btnStopStreamDownload.addEventListener('click', function () {
+        sumFragment = 0
+        isStreamDownload = false
         stopStreamDownload = true
-        $btnDownload.style.display = 'inline-block'
         $btnStreamDownload.style.display = 'inline-block'
         $btnStopStreamDownload.style.display = 'none'
         _sourceBufferList.forEach(sourceBuffer => {
-          sourceBuffer.streamWriter.close()
-          sourceBuffer.fragments += sourceBuffer.fragsPerFile
+          try {
+            if (sourceBuffer.fragments % sourceBuffer.fragsPerFile > 0) {
+              sourceBuffer.streamWriter.close()
+              console.debug(sourceBuffer.fileName, 'stop close file')
+            }
+          } catch (error) {
+            console.error(sourceBuffer.fileName, 'error close file')
+          }
         })
       })
 
@@ -350,258 +370,21 @@
       $container.appendChild($closeBtn)
       $container.appendChild($showBtn)
       $btnStreamDownload.style.display = 'inline-block'
+
+      // 加载 stream 流式下载器
+      try {
+        let $streamSaver = document.createElement('script')
+        $streamSaver.src = 'http://localhost:80/streamSaver.js'
+        document.body.appendChild($streamSaver);
+        $streamSaver.addEventListener('load', () => {
+          $btnStreamDownload.style.display = 'inline-block'
+        })
+      } catch (error) {
+        console.error(error)
+      }
+
     }
 
-    //StreamSaver
-    const global = typeof window === 'object' ? window : this
-    if (!global.HTMLElement) console.warn('streamsaver is meant to run on browsers main thread')
-    let mitmTransporter = null
-    let supportsTransferable = false
-    const test = fn => { try { fn() } catch (e) { } }
-    const ponyfill = global.WebStreamsPolyfill || {}
-    const isSecureContext = global.isSecureContext
-    let useBlobFallback = /constructor/i.test(global.HTMLElement) || !!global.safari || !!global.WebKitPoint
-    const downloadStrategy = isSecureContext || 'MozAppearance' in document.documentElement.style
-      ? 'iframe'
-      : 'navigate'
-    const streamSaver = {
-      createWriteStream,
-      WritableStream: global.WritableStream || ponyfill.WritableStream,
-      supported: true,
-      version: { full: '2.0.5', major: 2, minor: 0, dot: 5 },
-      mitm: 'http://localhost:80/mitm.html'//'https://upyun.luckly-mjw.cn/lib/stream-saver-mitm.html'
-    }
-    function makeIframe(src) {
-      if (!src) throw new Error('meh')
-      const iframe = document.createElement('iframe')
-      iframe.hidden = true
-      iframe.src = src
-      iframe.loaded = false
-      iframe.name = 'iframe'
-      iframe.isIframe = true
-      iframe.postMessage = (...args) => iframe.contentWindow.postMessage(...args)
-      iframe.addEventListener('load', () => {
-        iframe.loaded = true
-      }, { once: true })
-      document.body.appendChild(iframe)
-      return iframe
-    }
-    function makePopup(src) {
-      const options = 'width=200,height=100'
-      const delegate = document.createDocumentFragment()
-      const popup = {
-        frame: global.open(src, 'popup', options),
-        loaded: false,
-        isIframe: false,
-        isPopup: true,
-        remove() { popup.frame.close() },
-        addEventListener(...args) { delegate.addEventListener(...args) },
-        dispatchEvent(...args) { delegate.dispatchEvent(...args) },
-        removeEventListener(...args) { delegate.removeEventListener(...args) },
-        postMessage(...args) { popup.frame.postMessage(...args) }
-      }
-      const onReady = evt => {
-        if (evt.source === popup.frame) {
-          popup.loaded = true
-          global.removeEventListener('message', onReady)
-          popup.dispatchEvent(new Event('load'))
-        }
-      }
-      global.addEventListener('message', onReady)
-      return popup
-    }
-    try {
-      new Response(new ReadableStream())
-      if (isSecureContext && !('serviceWorker' in navigator)) {
-        useBlobFallback = true
-      }
-    } catch (err) {
-      useBlobFallback = true
-    }
-    test(() => {
-      const { readable } = new TransformStream()
-      const mc = new MessageChannel()
-      mc.port1.postMessage(readable, [readable])
-      mc.port1.close()
-      mc.port2.close()
-      supportsTransferable = true
-      Object.defineProperty(streamSaver, 'TransformStream', {
-        configurable: false,
-        writable: false,
-        value: TransformStream
-      })
-    })
-    function loadTransporter() {
-      if (!mitmTransporter) {
-        mitmTransporter = isSecureContext
-          ? makeIframe(streamSaver.mitm)
-          : makePopup(streamSaver.mitm)
-      }
-    }
-    function createWriteStream(filename, options, size) {
-      let opts = {
-        size: null,
-        pathname: null,
-        writableStrategy: undefined,
-        readableStrategy: undefined
-      }
-      let bytesWritten = 0
-      let downloadUrl = null
-      let channel = null
-      let ts = null
-      let writer = null
-      let windowNum = 0
-      if (Number.isFinite(options)) {
-        [size, options] = [options, size]
-        console.warn('[StreamSaver] Deprecated pass an object as 2nd argument when creating a write stream')
-        opts.size = size
-        opts.writableStrategy = options
-      } else if (options && options.highWaterMark) {
-        console.warn('[StreamSaver] Deprecated pass an object as 2nd argument when creating a write stream')
-        opts.size = size
-        opts.writableStrategy = options
-      } else {
-        opts = options || {}
-      }
-      if (!useBlobFallback) {
-        loadTransporter()
-        channel = new MessageChannel()
-        filename = encodeURIComponent(filename.replace(/\//g, ':'))
-          .replace(/['()]/g, escape)
-          .replace(/\*/g, '%2A')
-        const response = {
-          transferringReadable: supportsTransferable,
-          pathname: opts.pathname || Math.random().toString().slice(-6) + '/' + filename,
-          headers: {
-            'Content-Type': 'application/octet-stream; charset=utf-8',
-            'Content-Disposition': "attachment; filename*=UTF-8''" + filename
-          }
-        }
-        if (opts.size) {
-          response.headers['Content-Length'] = opts.size
-        }
-        const args = [response, '*', [channel.port2]]
-        if (supportsTransferable) {
-          const transformer = downloadStrategy === 'iframe' ? undefined : {
-            transform(chunk, controller) {
-              if (!(chunk instanceof Uint8Array)) {
-                throw new TypeError('Can only write Uint8Arrays')
-              }
-              bytesWritten += chunk.length
-              controller.enqueue(chunk)
-              if (downloadUrl) {
-                windowNum++
-                location.href = downloadUrl
-                downloadUrl = null
-              }
-            },
-            flush() {
-              if (downloadUrl) {
-                windowNum++
-                location.href = downloadUrl
-              }
-            }
-          }
-          ts = new streamSaver.TransformStream(
-            transformer,
-            opts.writableStrategy,
-            opts.readableStrategy
-          )
-          const readableStream = ts.readable
-          channel.port1.postMessage({ readableStream }, [readableStream])
-        }
-        channel.port1.onmessage = evt => {
-          if (evt.data.download) {
-            if (downloadStrategy === 'navigate') {
-              mitmTransporter.remove()
-              mitmTransporter = null
-              if (bytesWritten) {
-                windowNum++
-                location.href = evt.data.download
-              } else {
-                downloadUrl = evt.data.download
-              }
-            } else {
-              if (mitmTransporter.isPopup) {
-                mitmTransporter.remove()
-                mitmTransporter = null
-                if (downloadStrategy === 'iframe') {
-                  makeIframe(streamSaver.mitm)
-                }
-              }
-              makeIframe(evt.data.download)
-            }
-          } else if (evt.data.abort) {
-            chunks = []
-            channel.port1.postMessage('abort')
-            channel.port1.onmessage = null
-            channel.port1.close()
-            channel.port2.close()
-            channel = null
-          }
-        }
-        if (mitmTransporter.loaded) {
-          mitmTransporter.postMessage(...args)
-        } else {
-          mitmTransporter.addEventListener('load', () => {
-            mitmTransporter.postMessage(...args)
-          }, { once: true })
-        }
-      }
-      let chunks = []
-      writer = (!useBlobFallback && ts && ts.writable) || new streamSaver.WritableStream({
-        write(chunk) {
-          if (!(chunk instanceof Uint8Array)) {
-            throw new TypeError('Can only write Uint8Arrays')
-          }
-          if (useBlobFallback) {
-            chunks.push(chunk)
-            return
-          }
-          channel.port1.postMessage(chunk)
-          bytesWritten += chunk.length
-          if (downloadUrl) {
-            windowNum++
-            location.href = downloadUrl
-            downloadUrl = null
-          }
-        },
-        close() {
-          if (useBlobFallback) {
-            const blob = new Blob(chunks, { type: 'application/octet-stream; charset=utf-8' })
-            const link = document.createElement('a')
-            link.href = URL.createObjectURL(blob)
-            link.download = filename
-            link.click()
-          } else {
-            channel.port1.postMessage('end')
-          }
-        },
-        abort() {
-          chunks = []
-          channel.port1.postMessage('abort')
-          channel.port1.onmessage = null
-          channel.port1.close()
-          channel.port2.close()
-          channel = null
-        }
-      }, opts.writableStrategy)
-      const originWriter = writer.getWriter()
-      writer.getWriter = (function () {
-        return originWriter
-      }).bind(originWriter)
-      console.log('window.addEventListener(')
-      window.addEventListener('beforeunload', () => {
-        console.log(windowNum)
-        if (windowNum === 0) {
-          originWriter.close()
-        }
-        windowNum--
-      })
-      return writer
-    }
-    streamSaver.createWriteStream = createWriteStream
-    console.log('streamSaver RUN')
 
   })()
 })()
